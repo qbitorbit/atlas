@@ -1,0 +1,25 @@
+# LLM Configuration
+
+server:
+  base_url: "http://10.202.1.3:8000/v1"
+  api_key: "dummy-key"
+
+models:
+  # Model for tool calling and agents (required capability)
+  tool_calling: "/models/Quen/Qwen3-Coder-480B-A35B-Instruct-FP8"
+
+  # Model for simple reasoning tasks
+  reasoning: "/models/openai/gpt-oss-120b"
+
+  # Fast model for quick queries
+  fast: "/models/openai/gpt-oss-20b"
+
+parameters:
+  default_temperature: 0.1
+  default_max_tokens: 2000
+  default_timeout: 60
+
+routing:
+  # Automatic routing rules
+  use_tool_calling_for_agents: true
+  use_reasoning_for_simple_queries: true
