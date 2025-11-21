@@ -12,19 +12,19 @@ from langchain.agents import create_agent
 from langchain.tools import tool
 
 
-# def test_model_routing():
-#     """Test that model routing selects correct models."""
-#     print("Testing Model Routing Middleware...")
-#     print("=" * 60)
+def test_model_routing():
+    """Test that model routing selects correct models."""
+    print("Testing Model Routing Middleware...")
+    print("=" * 60)
 
-#     # Test 1: Tool calling model selection
-#     print("\n1. Testing tool-calling model selection...")
-#     llm_tools = get_routed_llm(use_tools=True)
-#     print(f"   Model selected: {llm_tools.model_name}")
-#     expected_tool_model = config.MODELS["tool_calling"]
-#     assert llm_tools.model_name == expected_tool_model, \
-#         f"Expected {expected_tool_model}, got {llm_tools.model_name}"
-#     print(f"   ✓ Correct: {expected_tool_model}")
+    # Test 1: Tool calling model selection
+    print("\n1. Testing tool-calling model selection...")
+    llm_tools = get_routed_llm(use_tools=True)
+    print(f"   Model selected: {llm_tools.model_name}")
+    expected_tool_model = config.MODELS["tool_calling"]
+    assert llm_tools.model_name == expected_tool_model, \
+        f"Expected {expected_tool_model}, got {llm_tools.model_name}"
+    print(f"   ✓ Correct: {expected_tool_model}")
 
     # Test 2: Reasoning model selection
     print("\n2. Testing reasoning model selection...")
@@ -45,7 +45,7 @@ from langchain.tools import tool
     # print(f"   ✓ Correct: {expected_fast_model}")
 
     # Test 4: Verify tool-calling model connection (Qwen only)
-    print("\n4. Testing tool-calling model connection (Qwen)...")
+    print("\n3. Testing tool-calling model connection (Qwen)...")
     try:
         response = llm_tools.invoke("Reply with just 'Routing OK'")
         print(f"   ✓ Response: {response.content[:50]}")
@@ -54,7 +54,7 @@ from langchain.tools import tool
         raise
 
     # Test 5: Verify reasoning model connection
-    print("\n5. Testing reasoning model connection (gpt-oss-120b)...")
+    print("\n4. Testing reasoning model connection (gpt-oss-120b)...")
     try:
         response = llm_reasoning.invoke("Reply with just 'Reasoning OK'")
         print(f"   ✓ Response: {response.content[:50]}")
@@ -72,7 +72,7 @@ from langchain.tools import tool
     #     raise
 
     # Test 7: IMPORTANT - Verify tool calling actually works with Qwen
-    print("\n7. Testing ACTUAL tool calling with Qwen model...")
+    print("\n5. Testing ACTUAL tool calling with Qwen model...")
 
     @tool
     def test_tool(query: str) -> str:
