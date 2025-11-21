@@ -4,11 +4,11 @@
 LLM_BASE_URL = "http://10.202.1.3:8000/v1"
 LLM_API_KEY = "dummy-key"
 
-# Model configurations (using correct paths)
+# Model configurations (using exact paths from working atlas.py)
 MODELS = {
-    "tool_calling": "/models/Quen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+    "tool_calling": "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
     "reasoning": "/models/openai/gpt-oss-120b",
-    "fast": "/models/openai/gpt-oss-20b"
+    # "fast": "/models/openai/gpt-oss-20b"  # Commented out - not working
 }
 
 # Default model for agents (must support tool calling)
