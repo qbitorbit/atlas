@@ -6,13 +6,13 @@ server:
 
 models:
   # Model for tool calling and agents (required capability)
-  tool_calling: "/models/Quen/Qwen3-Coder-480B-A35B-Instruct-FP8"
+  tool_calling: "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"
 
   # Model for simple reasoning tasks
   reasoning: "/models/openai/gpt-oss-120b"
 
-  # Fast model for quick queries
-  fast: "/models/openai/gpt-oss-20b"
+  # Fast model for quick queries (commented out - not working)
+  # fast: "/models/openai/gpt-oss-20b"
 
 parameters:
   default_temperature: 0.1
