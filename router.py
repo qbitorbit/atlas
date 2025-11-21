@@ -23,7 +23,7 @@ def get_routed_llm(
         # Tool calling requires Qwen model
         model = config.MODELS["tool_calling"]
     else:
-        # Simple reasoning can use faster model
+        # Simple reasoning uses gpt-oss-120b
         model = config.MODELS["reasoning"]
 
     return ChatOpenAI(
@@ -34,16 +34,17 @@ def get_routed_llm(
     )
 
 
-def get_fast_llm(temperature: Optional[float] = None) -> ChatOpenAI:
-    """
-    Get fast LLM for quick queries.
-
-    Returns:
-        ChatOpenAI: Fast LLM client
-    """
-    return ChatOpenAI(
-        base_url=config.LLM_BASE_URL,
-        api_key=config.LLM_API_KEY,
-        model=config.MODELS["fast"],
-        temperature=temperature or config.DEFAULT_TEMPERATURE
-    )
+# Commented out - gpt-oss-20b not working
+# def get_fast_llm(temperature: Optional[float] = None) -> ChatOpenAI:
+#     """
+#     Get fast LLM for quick queries.
+#
+#     Returns:
+#         ChatOpenAI: Fast LLM client
+#     """
+#     return ChatOpenAI(
+#         base_url=config.LLM_BASE_URL,
+#         api_key=config.LLM_API_KEY,
+#         model=config.MODELS["fast"],
+#         temperature=temperature or config.DEFAULT_TEMPERATURE
+#     )
