@@ -78,7 +78,7 @@ class SecurityValidator:
         return True, RiskLevel.SAFE, "Safe operation"
 
     @staticmethod
-    def validate_path(path: str) -> Tuple[bool, str]:
+    def validate_path(path: str) -> Tuple[bool, RiskLevel, str]:
         """
         Validate file path for security.
 
@@ -86,13 +86,13 @@ class SecurityValidator:
             path: File path to validate
 
         Returns:
-            Tuple[bool, str]: (valid, reason)
+            Tuple[bool, RiskLevel, str]: (allowed, risk_level, reason)
         """
-        # Block absolute system paths
+        # Flag system paths as high risk (but allow)
         dangerous_paths = ["/system", "/boot", "/recovery", "/dev"]
 
         for dangerous in dangerous_paths:
             if path.startswith(dangerous):
-                return False, f"Access to {dangerous} is not allowed"
+                return True, RiskLevel.HIGH, f"System path: {dangerous}"
 
-        return True, "Path is valid"
+        return True, RiskLevel.SAFE, "Safe path"
