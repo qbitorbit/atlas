@@ -1,1 +1,26 @@
+# Domain Configuration
+
+# Available domains
+domains:
+  android:
+    enabled: true
+    description: "Android device management and automation"
+
+  database:
+    enabled: true
+    description: "Database query and management"
+
+  kubernetes:
+    enabled: false
+    description: "Kubernetes cluster management (future)"
+
+# Domain-specific settings
+settings:
+  android:
+    max_devices: 10
+    default_timeout: 30
+
+  database:
+    max_connections: 5
+    query_timeout: 60
 
