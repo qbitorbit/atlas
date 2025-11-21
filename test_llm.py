@@ -6,7 +6,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from llm.client import get_llm_client
+from langchain_openai import ChatOpenAI
 from llm import config
 
 
@@ -15,14 +15,17 @@ def test_llm_connection():
     print("Testing LLM connection...")
     print(f"Base URL: {config.LLM_BASE_URL}")
     print(f"Model: {config.DEFAULT_MODEL}")
+    print(f"Temperature: {config.DEFAULT_TEMPERATURE}")
 
-    # Create LLM client
-    try:
-        llm = get_llm_client()
-        print(f"✓ LLM client created")
-    except Exception as e:
-        print(f"❌ Failed to create LLM client: {e}")
-        raise
+    # Create LLM client directly (same as working atlas.py)
+    print("\nCreating LLM client...")
+    llm = ChatOpenAI(
+        base_url=config.LLM_BASE_URL,
+        api_key=config.LLM_API_KEY,
+        model=config.DEFAULT_MODEL,
+        temperature=config.DEFAULT_TEMPERATURE
+    )
+    print(f"✓ LLM client created")
 
     # Test simple query
     print("\nSending test query...")
@@ -31,12 +34,11 @@ def test_llm_connection():
         print(f"✓ Response received: {response.content}")
     except Exception as e:
         print(f"\n❌ Failed to get response from LLM")
-        print(f"Error: {str(e)[:200]}")
-        print("\nPossible issues:")
-        print("1. Check if LLM server is running at http://10.202.1.3:8000")
-        print("2. Verify network connectivity to 10.202.1.3")
-        print("3. Ensure you're running: env -u http_proxy python tests/test_llm.py")
-        print("4. Verify the model name is correct")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error: {str(e)[:300]}")
+        print("\nDebugging info:")
+        print(f"  base_url={config.LLM_BASE_URL}")
+        print(f"  model={config.DEFAULT_MODEL}")
         raise
 
     print("\n✅ Checkpoint 1.1 PASSED - LLM connection successful!")
