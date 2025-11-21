@@ -11,37 +11,74 @@ from llm import config
 
 
 def test_llm_connection():
-    """Test basic LLM connection and response."""
-    print("Testing LLM connection...")
-    print(f"Base URL: {config.LLM_BASE_URL}")
-    print(f"Model: {config.DEFAULT_MODEL}")
-    print(f"Temperature: {config.DEFAULT_TEMPERATURE}")
+    """Test basic LLM connection and response for all models."""
+    print("Testing LLM connections...")
+    print("=" * 60)
 
-    # Create LLM client directly (same as working atlas.py)
-    print("\nCreating LLM client...")
-    llm = ChatOpenAI(
+    # Test 1: Tool-calling model (Qwen)
+    print("\n1. Testing Tool-Calling Model (Qwen)...")
+    print(f"   Base URL: {config.LLM_BASE_URL}")
+    print(f"   Model: {config.MODELS['tool_calling']}")
+
+    llm_tool = ChatOpenAI(
         base_url=config.LLM_BASE_URL,
         api_key=config.LLM_API_KEY,
-        model=config.DEFAULT_MODEL,
+        model=config.MODELS["tool_calling"],
         temperature=config.DEFAULT_TEMPERATURE
     )
-    print(f"✓ LLM client created")
+    print(f"   ✓ Client created")
 
-    # Test simple query
-    print("\nSending test query...")
     try:
-        response = llm.invoke("Say 'Hello from Atlas!' and nothing else.")
-        print(f"✓ Response received: {response.content}")
+        response = llm_tool.invoke("Say 'Qwen OK' and nothing else.")
+        print(f"   ✓ Response: {response.content}")
     except Exception as e:
-        print(f"\n❌ Failed to get response from LLM")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error: {str(e)[:300]}")
-        print("\nDebugging info:")
-        print(f"  base_url={config.LLM_BASE_URL}")
-        print(f"  model={config.DEFAULT_MODEL}")
+        print(f"   ❌ Failed: {str(e)[:100]}")
         raise
 
-    print("\n✅ Checkpoint 1.1 PASSED - LLM connection successful!")
+    # Test 2: Reasoning model (gpt-oss-120b)
+    print("\n2. Testing Reasoning Model (gpt-oss-120b)...")
+    print(f"   Model: {config.MODELS['reasoning']}")
+
+    llm_reasoning = ChatOpenAI(
+        base_url=config.LLM_BASE_URL,
+        api_key=config.LLM_API_KEY,
+        model=config.MODELS["reasoning"],
+        temperature=config.DEFAULT_TEMPERATURE
+    )
+    print(f"   ✓ Client created")
+
+    try:
+        response = llm_reasoning.invoke("Say 'Reasoning OK' and nothing else.")
+        print(f"   ✓ Response: {response.content}")
+    except Exception as e:
+        print(f"   ❌ Failed: {str(e)[:100]}")
+        raise
+
+    # Test 3: Fast model (gpt-oss-20b)
+    print("\n3. Testing Fast Model (gpt-oss-20b)...")
+    print(f"   Model: {config.MODELS['fast']}")
+
+    llm_fast = ChatOpenAI(
+        base_url=config.LLM_BASE_URL,
+        api_key=config.LLM_API_KEY,
+        model=config.MODELS["fast"],
+        temperature=config.DEFAULT_TEMPERATURE
+    )
+    print(f"   ✓ Client created")
+
+    try:
+        response = llm_fast.invoke("Say 'Fast OK' and nothing else.")
+        print(f"   ✓ Response: {response.content}")
+    except Exception as e:
+        print(f"   ❌ Failed: {str(e)[:100]}")
+        raise
+
+    print("\n" + "=" * 60)
+    print("\n✅ Checkpoint 1.1 PASSED - All LLM connections successful!")
+    print("\nTested models:")
+    print(f"  ✓ Tool-calling: {config.MODELS['tool_calling']}")
+    print(f"  ✓ Reasoning:    {config.MODELS['reasoning']}")
+    print(f"  ✓ Fast:         {config.MODELS['fast']}")
     return True
 
 
