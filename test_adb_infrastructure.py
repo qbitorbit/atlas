@@ -72,19 +72,23 @@ def test_adb_infrastructure():
 
     # Test 7: Path validation - Safe path
     print("\n7. Testing path validation (safe path)...")
-    valid, reason = SecurityValidator.validate_path("/sdcard/Download/file.txt")
+    allowed, risk, reason = SecurityValidator.validate_path("/sdcard/Download/file.txt")
     print(f"   Path: '/sdcard/Download/file.txt'")
-    print(f"   Valid: {valid}")
+    print(f"   Allowed: {allowed}")
+    print(f"   Risk: {risk.value}")
     print(f"   Reason: {reason}")
-    assert valid, "Safe path should be valid"
+    assert allowed, "Safe path should be allowed"
+    assert risk == RiskLevel.SAFE, "Should be safe risk"
 
-    # Test 8: Path validation - Dangerous path
-    print("\n8. Testing path validation (dangerous path)...")
-    valid, reason = SecurityValidator.validate_path("/system/bin/su")
+    # Test 8: Path validation - System path (high risk)
+    print("\n8. Testing path validation (system path)...")
+    allowed, risk, reason = SecurityValidator.validate_path("/system/bin/su")
     print(f"   Path: '/system/bin/su'")
-    print(f"   Valid: {valid}")
+    print(f"   Allowed: {allowed}")
+    print(f"   Risk: {risk.value}")
     print(f"   Reason: {reason}")
-    assert not valid, "System path should be invalid"
+    assert allowed, "System path should be allowed (with warning)"
+    assert risk == RiskLevel.HIGH, "Should be high risk"
 
     # Test 9: Device Manager
     print("\n9. Testing device manager...")
