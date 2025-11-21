@@ -4,9 +4,9 @@
 LLM_BASE_URL = "http://10.202.1.3:8000/v1"
 LLM_API_KEY = "dummy-key"
 
-# Model configurations
+# Model configurations (using exact path from working atlas.py test)
 MODELS = {
-    "tool_calling": "/models/openai/Qwen3-Coder-480B-A35B-Instruct-FP8",
+    "tool_calling": "/models/openai//models/openai/Qwen3-Coder-480B-A35B-Instruct-FP8",
     "reasoning": "gpt-oss-120b",
     "fast": "gpt-oss-20b"
 }
