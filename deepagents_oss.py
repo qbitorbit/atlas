@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-DeepAgents CLI Wrapper for Open Source Models (v2 - with proxy fixes)
+DeepAgents CLI Wrapper for Open Source Models (v3 - Tool Calling Support)
 
 This wrapper allows you to use the deepagents-cli with your internal
-open source models served via OpenAI-compatible API (vLLM, etc.)
+open source models served via OpenAI-compatible API.
+
+IMPORTANT: DeepAgents requires a model that supports TOOL CALLING.
+The gpt-oss models do NOT support tool calling, so we use Qwen instead.
 
 Usage:
-    python deepagents_oss_v2.py
-    python deepagents_oss_v2.py --agent myagent
-    python deepagents_oss_v2.py --auto-approve
-
-Configuration:
-    Edit the MODEL_CONFIG section below to match your internal setup.
+    python deepagents_oss_v3.py
+    python deepagents_oss_v3.py --agent myagent
+    python deepagents_oss_v3.py --auto-approve
+    python deepagents_oss_v3.py --test  # Test connection first
 """
 
 import os
@@ -34,27 +35,28 @@ os.environ['NO_PROXY'] = os.environ['no_proxy']
 # ============================================================================
 
 MODEL_CONFIG = {
-    # Your internal LLM server endpoint (make sure it ends with /v1)
+    # Your internal LLM server endpoint
     "base_url": "http://10.202.1.3:8000/v1",
     
     # API key (use "dummy-key" if your server doesn't require auth)
     "api_key": "dummy-key",
     
-    # Default model - adjust the path format if needed
-    # Try these formats if one doesn't work:
-    #   "/models/openai/gpt-oss-120b"
-    #   "openai/gpt-oss-120b"  
-    #   "gpt-oss-120b"
-    "default_model": "/models/openai/gpt-oss-120b",
+    # IMPORTANT: DeepAgents requires tool calling support!
+    # gpt-oss models do NOT support tool calling, use Qwen instead
+    "default_model": "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
     
-    # Temperature setting (lower = more deterministic)
+    # Alternative models (for reference)
+    "models": {
+        # Model that supports tool calling (REQUIRED for deepagents)
+        "tool_calling": "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+        # Reasoning model (does NOT support tool calling - don't use with deepagents)
+        "reasoning": "/models/openai/gpt-oss-120b",
+    },
+    
+    # LLM parameters
     "temperature": 0.1,
-    
-    # Request timeout in seconds (increase if your model is slow)
-    "timeout": 120,
-    
-    # Max retries on failure
-    "max_retries": 2,
+    "max_tokens": 2000,
+    "timeout": 60,
 }
 
 # ============================================================================
@@ -66,7 +68,6 @@ def patch_create_model():
     Monkey-patch the deepagents_cli.config.create_model function
     to use our internal models instead of cloud APIs.
     """
-    import httpx
     from langchain_openai import ChatOpenAI
     from deepagents_cli import config
     
@@ -76,26 +77,22 @@ def patch_create_model():
         base_url = os.environ.get("DEEPAGENTS_BASE_URL", MODEL_CONFIG["base_url"])
         api_key = os.environ.get("DEEPAGENTS_API_KEY", MODEL_CONFIG["api_key"])
         temperature = float(os.environ.get("DEEPAGENTS_TEMPERATURE", MODEL_CONFIG["temperature"]))
-        timeout = float(os.environ.get("DEEPAGENTS_TIMEOUT", MODEL_CONFIG["timeout"]))
-        max_retries = int(os.environ.get("DEEPAGENTS_MAX_RETRIES", MODEL_CONFIG["max_retries"]))
         
         config.console.print(f"[dim]Using OSS model: {model_name}[/dim]")
         config.console.print(f"[dim]Endpoint: {base_url}[/dim]")
         
-        # Create httpx client without proxy
-        http_client = httpx.Client(
-            timeout=httpx.Timeout(timeout),
-            follow_redirects=True,
-        )
+        # Check if using a model that doesn't support tool calling
+        if "gpt-oss" in model_name.lower():
+            config.console.print("[yellow]⚠ Warning: gpt-oss models don't support tool calling![/yellow]")
+            config.console.print("[yellow]  DeepAgents requires tool calling. Switching to Qwen model.[/yellow]")
+            model_name = MODEL_CONFIG["models"]["tool_calling"]
+            config.console.print(f"[dim]Switched to: {model_name}[/dim]")
         
         return ChatOpenAI(
             base_url=base_url,
             api_key=api_key,
             model=model_name,
             temperature=temperature,
-            timeout=timeout,
-            max_retries=max_retries,
-            http_client=http_client,
         )
     
     # Replace the original create_model function
@@ -108,34 +105,68 @@ def patch_create_model():
 def test_connection():
     """Test the LLM connection before starting the CLI."""
     import httpx
+    from langchain_openai import ChatOpenAI
     
     base_url = MODEL_CONFIG["base_url"]
+    model_name = MODEL_CONFIG["default_model"]
     
     print(f"Testing connection to {base_url}...")
+    print(f"Model: {model_name}")
+    print()
     
     try:
-        # Test basic connectivity
+        # Test 1: Basic connectivity to /models endpoint
+        print("1. Testing /models endpoint...")
         client = httpx.Client(timeout=10.0)
-        
-        # Try to hit the models endpoint
         response = client.get(f"{base_url}/models")
         
         if response.status_code == 200:
-            print(f"✓ Connection successful!")
-            models = response.json()
-            print(f"✓ Available models: {models}")
-            return True
+            print(f"   ✓ Models endpoint accessible")
         else:
-            print(f"✗ Got status code: {response.status_code}")
-            print(f"  Response: {response.text[:500]}")
+            print(f"   ✗ Got status code: {response.status_code}")
             return False
+        
+        # Test 2: Actual chat completion
+        print("2. Testing chat completion...")
+        llm = ChatOpenAI(
+            base_url=base_url,
+            api_key=MODEL_CONFIG["api_key"],
+            model=model_name,
+            temperature=MODEL_CONFIG["temperature"],
+        )
+        
+        response = llm.invoke("Say 'hello' and nothing else.")
+        print(f"   ✓ Chat completion works!")
+        print(f"   Response: {response.content[:100]}...")
+        
+        # Test 3: Tool calling support
+        print("3. Testing tool calling support...")
+        from langchain_core.tools import tool
+        
+        @tool
+        def test_tool(query: str) -> str:
+            """A test tool that echoes input."""
+            return f"Echo: {query}"
+        
+        llm_with_tools = llm.bind_tools([test_tool])
+        response = llm_with_tools.invoke("Use the test_tool to echo 'hello'")
+        
+        if response.tool_calls:
+            print(f"   ✓ Tool calling supported!")
+        else:
+            print(f"   ⚠ Model responded but didn't use tools")
+            print(f"   This might still work, but tool calling may be limited")
+        
+        print()
+        return True
             
     except httpx.ConnectError as e:
-        print(f"✗ Connection failed: {e}")
-        print("  Check if the server is running and accessible")
+        print(f"   ✗ Connection failed: {e}")
         return False
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"   ✗ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -147,7 +178,7 @@ def main():
         sys.argv.remove("--test")
         if not test_connection():
             sys.exit(1)
-        print("\nConnection test passed! Starting CLI...\n")
+        print("Connection test passed! Starting CLI...\n")
     
     # Set environment variables that LangChain might check
     os.environ.setdefault("OPENAI_API_KEY", MODEL_CONFIG["api_key"])
