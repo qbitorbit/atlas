@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-DeepAgents CLI Wrapper for Open Source Models (v3 - Tool Calling Support)
+DeepAgents CLI Wrapper for Open Source Models (v4 - Async/Streaming Fix)
 
 This wrapper allows you to use the deepagents-cli with your internal
 open source models served via OpenAI-compatible API.
 
-IMPORTANT: DeepAgents requires a model that supports TOOL CALLING.
-The gpt-oss models do NOT support tool calling, so we use Qwen instead.
+IMPORTANT: 
+- DeepAgents requires a model that supports TOOL CALLING.
+- DeepAgents uses ASYNC STREAMING which may behave differently than sync calls.
 
 Usage:
-    python deepagents_oss_v3.py
-    python deepagents_oss_v3.py --agent myagent
-    python deepagents_oss_v3.py --auto-approve
-    python deepagents_oss_v3.py --test  # Test connection first
+    python deepagents_oss_v4.py
+    python deepagents_oss_v4.py --agent myagent
+    python deepagents_oss_v4.py --auto-approve
+    python deepagents_oss_v4.py --test  # Test connection with streaming
 """
 
 import os
@@ -23,12 +24,13 @@ import sys
 # ============================================================================
 
 # Clear all proxy settings that might interfere with internal network
-for proxy_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY']:
+for proxy_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 
+                  'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY']:
     os.environ.pop(proxy_var, None)
 
 # Set no_proxy to bypass proxy for internal IPs
-os.environ['no_proxy'] = '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,localhost,127.0.0.1'
-os.environ['NO_PROXY'] = os.environ['no_proxy']
+os.environ['no_proxy'] = '*'
+os.environ['NO_PROXY'] = '*'
 
 # ============================================================================
 # MODEL CONFIGURATION - Edit this section to match your setup
@@ -42,18 +44,10 @@ MODEL_CONFIG = {
     "api_key": "dummy-key",
     
     # IMPORTANT: DeepAgents requires tool calling support!
-    # gpt-oss models do NOT support tool calling, use Qwen instead
+    # Use Qwen model that supports tool calling
     "default_model": "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
     
-    # Alternative models (for reference)
-    "models": {
-        # Model that supports tool calling (REQUIRED for deepagents)
-        "tool_calling": "/models/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
-        # Reasoning model (does NOT support tool calling - don't use with deepagents)
-        "reasoning": "/models/openai/gpt-oss-120b",
-    },
-    
-    # LLM parameters
+    # LLM parameters (matching your working config)
     "temperature": 0.1,
     "max_tokens": 2000,
     "timeout": 60,
@@ -70,6 +64,7 @@ def patch_create_model():
     """
     from langchain_openai import ChatOpenAI
     from deepagents_cli import config
+    import httpx
     
     def create_model_oss():
         """Create model connected to internal OpenAI-compatible API."""
@@ -77,6 +72,7 @@ def patch_create_model():
         base_url = os.environ.get("DEEPAGENTS_BASE_URL", MODEL_CONFIG["base_url"])
         api_key = os.environ.get("DEEPAGENTS_API_KEY", MODEL_CONFIG["api_key"])
         temperature = float(os.environ.get("DEEPAGENTS_TEMPERATURE", MODEL_CONFIG["temperature"]))
+        timeout = float(os.environ.get("DEEPAGENTS_TIMEOUT", MODEL_CONFIG["timeout"]))
         
         config.console.print(f"[dim]Using OSS model: {model_name}[/dim]")
         config.console.print(f"[dim]Endpoint: {base_url}[/dim]")
@@ -84,15 +80,31 @@ def patch_create_model():
         # Check if using a model that doesn't support tool calling
         if "gpt-oss" in model_name.lower():
             config.console.print("[yellow]⚠ Warning: gpt-oss models don't support tool calling![/yellow]")
-            config.console.print("[yellow]  DeepAgents requires tool calling. Switching to Qwen model.[/yellow]")
-            model_name = MODEL_CONFIG["models"]["tool_calling"]
+            config.console.print("[yellow]  Switching to Qwen model.[/yellow]")
+            model_name = MODEL_CONFIG["default_model"]
             config.console.print(f"[dim]Switched to: {model_name}[/dim]")
+        
+        # Create custom HTTP clients without proxy settings
+        # This ensures both sync and async requests bypass proxy
+        http_client = httpx.Client(
+            timeout=httpx.Timeout(timeout, connect=30.0),
+            follow_redirects=True,
+        )
+        
+        async_http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=30.0),
+            follow_redirects=True,
+        )
         
         return ChatOpenAI(
             base_url=base_url,
             api_key=api_key,
             model=model_name,
             temperature=temperature,
+            max_tokens=MODEL_CONFIG["max_tokens"],
+            timeout=timeout,
+            http_client=http_client,
+            http_async_client=async_http_client,
         )
     
     # Replace the original create_model function
@@ -103,68 +115,133 @@ def patch_create_model():
 
 
 def test_connection():
-    """Test the LLM connection before starting the CLI."""
+    """Test the LLM connection including streaming (like deepagents uses)."""
     import httpx
+    import asyncio
     from langchain_openai import ChatOpenAI
     
     base_url = MODEL_CONFIG["base_url"]
     model_name = MODEL_CONFIG["default_model"]
     
-    print(f"Testing connection to {base_url}...")
+    print(f"Testing connection to {base_url}")
     print(f"Model: {model_name}")
     print()
     
     try:
-        # Test 1: Basic connectivity to /models endpoint
+        # Test 1: Basic connectivity
         print("1. Testing /models endpoint...")
         client = httpx.Client(timeout=10.0)
         response = client.get(f"{base_url}/models")
         
         if response.status_code == 200:
-            print(f"   ✓ Models endpoint accessible")
+            print("   ✓ Models endpoint accessible")
+            data = response.json()
+            if 'data' in data:
+                print(f"   Available models: {[m.get('id', m) for m in data['data'][:5]]}...")
         else:
             print(f"   ✗ Got status code: {response.status_code}")
+            print(f"   Response: {response.text[:200]}")
             return False
         
-        # Test 2: Actual chat completion
-        print("2. Testing chat completion...")
+        # Test 2: Synchronous chat completion
+        print("\n2. Testing sync chat completion...")
+        
+        http_client = httpx.Client(
+            timeout=httpx.Timeout(MODEL_CONFIG["timeout"], connect=30.0),
+        )
+        
         llm = ChatOpenAI(
             base_url=base_url,
             api_key=MODEL_CONFIG["api_key"],
             model=model_name,
             temperature=MODEL_CONFIG["temperature"],
+            http_client=http_client,
         )
         
         response = llm.invoke("Say 'hello' and nothing else.")
-        print(f"   ✓ Chat completion works!")
-        print(f"   Response: {response.content[:100]}...")
+        print(f"   ✓ Sync completion works!")
+        print(f"   Response: {response.content[:100]}")
         
-        # Test 3: Tool calling support
-        print("3. Testing tool calling support...")
+        # Test 3: Async chat completion (this is what deepagents uses)
+        print("\n3. Testing async chat completion...")
+        
+        async def test_async():
+            async_http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(MODEL_CONFIG["timeout"], connect=30.0),
+            )
+            
+            llm_async = ChatOpenAI(
+                base_url=base_url,
+                api_key=MODEL_CONFIG["api_key"],
+                model=model_name,
+                temperature=MODEL_CONFIG["temperature"],
+                http_async_client=async_http_client,
+            )
+            
+            response = await llm_async.ainvoke("Say 'world' and nothing else.")
+            return response
+        
+        async_response = asyncio.run(test_async())
+        print(f"   ✓ Async completion works!")
+        print(f"   Response: {async_response.content[:100]}")
+        
+        # Test 4: Streaming (deepagents uses this heavily)
+        print("\n4. Testing async streaming...")
+        
+        async def test_streaming():
+            async_http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(MODEL_CONFIG["timeout"], connect=30.0),
+            )
+            
+            llm_stream = ChatOpenAI(
+                base_url=base_url,
+                api_key=MODEL_CONFIG["api_key"],
+                model=model_name,
+                temperature=MODEL_CONFIG["temperature"],
+                streaming=True,
+                http_async_client=async_http_client,
+            )
+            
+            chunks = []
+            async for chunk in llm_stream.astream("Count from 1 to 3."):
+                chunks.append(chunk.content)
+            return "".join(chunks)
+        
+        stream_response = asyncio.run(test_streaming())
+        print(f"   ✓ Streaming works!")
+        print(f"   Response: {stream_response[:100]}")
+        
+        # Test 5: Tool calling (required for deepagents)
+        print("\n5. Testing tool calling...")
+        
         from langchain_core.tools import tool
         
         @tool
-        def test_tool(query: str) -> str:
-            """A test tool that echoes input."""
-            return f"Echo: {query}"
+        def get_weather(city: str) -> str:
+            """Get weather for a city."""
+            return f"Weather in {city}: Sunny"
         
-        llm_with_tools = llm.bind_tools([test_tool])
-        response = llm_with_tools.invoke("Use the test_tool to echo 'hello'")
+        llm_with_tools = llm.bind_tools([get_weather])
+        response = llm_with_tools.invoke("What's the weather in Tokyo?")
         
-        if response.tool_calls:
-            print(f"   ✓ Tool calling supported!")
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            print(f"   ✓ Tool calling works!")
+            print(f"   Tool calls: {response.tool_calls}")
         else:
             print(f"   ⚠ Model responded but didn't use tools")
-            print(f"   This might still work, but tool calling may be limited")
+            print(f"   Response: {response.content[:100]}")
+            print("   This might still work, but tool calling behavior may vary")
         
-        print()
+        print("\n" + "="*50)
+        print("All tests passed!")
+        print("="*50 + "\n")
         return True
             
     except httpx.ConnectError as e:
-        print(f"   ✗ Connection failed: {e}")
+        print(f"\n   ✗ Connection failed: {e}")
         return False
     except Exception as e:
-        print(f"   ✗ Error: {e}")
+        print(f"\n   ✗ Error: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -178,7 +255,7 @@ def main():
         sys.argv.remove("--test")
         if not test_connection():
             sys.exit(1)
-        print("Connection test passed! Starting CLI...\n")
+        print("Starting CLI...\n")
     
     # Set environment variables that LangChain might check
     os.environ.setdefault("OPENAI_API_KEY", MODEL_CONFIG["api_key"])
